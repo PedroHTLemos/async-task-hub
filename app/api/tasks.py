@@ -4,7 +4,7 @@ import uuid
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.models import TaskRecord
+from app.models import TaskRecord, DeadLetter
 from app.schemas.task import TaskCreatedResponse, TaskStatusResponse
 from app.workers.tasks import process_image_task
 from app.core.limiter import limiter
@@ -58,7 +58,20 @@ def process_image(request: Request, file: UploadFile = File(...), db: Session = 
     return TaskCreatedResponse(task_id=task_id, status="pending")
 
 
-@router.get("/tasks/{task_id}", response_model=TaskStatusResponse)
+@router.get("/tasks/dead-letters")
+def list_dead_letters(db: Session = Depends(get_db)):
+    dead_letters = db.query(DeadLetter).order_by(DeadLetter.failed_at.desc()).limit(50).all()
+    return [
+        {
+            "id": dl.id,
+            "task_id": dl.task_id,
+            "file_path": dl.file_path,
+            "error_message": dl.error_message,
+            "retry_count": dl.retry_count,
+            "failed_at": dl.failed_at,
+        }
+        for dl in dead_letters
+    ]
 def get_task_status(task_id: str, db: Session = Depends(get_db)):
     task = db.query(TaskRecord).filter(TaskRecord.id == task_id).first()
     if not task:
