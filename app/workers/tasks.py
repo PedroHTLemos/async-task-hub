@@ -7,16 +7,13 @@ from app.core.database import SessionLocal
 from app.core.config import settings
 from app.models import TaskRecord, DeadLetter
 
-OUTPUT_DIR = "/code/app/static/processed"
+OUTPUT_DIR = "app/static/processed"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 DLQ_REDIS_KEY = "dlq:failed_tasks"
 
 redis_client = redis.from_url(settings.redis_url)
 
-# Exceptions where retrying is pointless: the input itself is bad and will
-# fail again identically every time (corrupted/unsupported image, missing
-# file). These go straight to the Dead Letter Queue without consuming retries.
 PERMANENT_FAILURE_EXCEPTIONS = (UnidentifiedImageError, FileNotFoundError, OSError)
 
 

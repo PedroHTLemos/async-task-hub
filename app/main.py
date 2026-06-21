@@ -6,13 +6,22 @@ from app.core.limiter import limiter
 from app.core.database import Base, engine
 from app.api import tasks
 
-Base.metadata.create_all(bind=engine)
-
 app = FastAPI(
     title="AsyncTask Hub",
     description="API assíncrona com fila de tarefas, rate limiting e cache",
     version="0.1.0",
 )
+
+
+@app.on_event("startup")
+def create_tables():
+    Base.metadata.create_all(bind=engine)
+
+
+@app.on_event("shutdown")
+def dispose_engine():
+    engine.dispose()
+
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)

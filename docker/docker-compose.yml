@@ -1,4 +1,3 @@
-
 services:
   postgres:
     image: postgres:16-alpine
@@ -37,6 +36,7 @@ services:
     container_name: asynctask_api
     restart: unless-stopped
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    stop_grace_period: 15s
     volumes:
       - ../app:/code/app
     ports:
@@ -56,6 +56,7 @@ services:
     container_name: asynctask_worker
     restart: unless-stopped
     command: celery -A app.workers.celery_app worker --loglevel=info
+    stop_grace_period: 30s
     volumes:
       - ../app:/code/app
     env_file:

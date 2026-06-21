@@ -7,3 +7,7 @@ __pycache__/
 .vscode/
 .DS_Store
 celerybeat-schedule
+app/static/uploads/*
+app/static/processed/*
+!app/static/uploads/.gitkeep
+!app/static/processed/.gitkeep

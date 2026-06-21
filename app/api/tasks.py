@@ -11,7 +11,7 @@ from app.core.limiter import limiter
 
 router = APIRouter()
 
-UPLOAD_DIR = "/code/app/static/uploads"
+UPLOAD_DIR = "app/static/uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
@@ -72,6 +72,7 @@ def list_dead_letters(db: Session = Depends(get_db)):
         }
         for dl in dead_letters
     ]
+@router.get("/tasks/{task_id}", response_model=TaskStatusResponse)
 def get_task_status(task_id: str, db: Session = Depends(get_db)):
     task = db.query(TaskRecord).filter(TaskRecord.id == task_id).first()
     if not task:
