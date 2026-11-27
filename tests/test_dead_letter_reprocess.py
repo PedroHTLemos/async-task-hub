@@ -2,6 +2,7 @@
 Reprocessamento de entradas da DLQ (POST /tasks/dead-letters/{id}/reprocess)
 e filtros administrativos de GET /tasks/dead-letters.
 """
+
 import hashlib
 import io
 import uuid
@@ -100,7 +101,9 @@ def test_successful_reprocess_creates_new_task_and_keeps_original_failed(
     assert db_session.get(TaskRecord, original_task_id).status == "failed"
 
 
-def test_second_reprocess_of_same_entry_is_rejected(client, db_session, tmp_path, admin, mock_redis):
+def test_second_reprocess_of_same_entry_is_rejected(
+    client, db_session, tmp_path, admin, mock_redis
+):
     data = _png_bytes()
     path = _write(tmp_path, "foto.png", data)
     dl_id, _ = _seed_failed(db_session, file_path=path, file_hash=_sha(data))
@@ -114,7 +117,9 @@ def test_second_reprocess_of_same_entry_is_rejected(client, db_session, tmp_path
     assert client.mock_delay.call_count == 1
 
 
-def test_missing_file_is_rejected_and_entry_stays_open(client, db_session, tmp_path, admin, mock_redis):
+def test_missing_file_is_rejected_and_entry_stays_open(
+    client, db_session, tmp_path, admin, mock_redis
+):
     dl_id, _ = _seed_failed(
         db_session,
         file_path=str(tmp_path / "sumiu.png"),
@@ -133,7 +138,9 @@ def test_missing_file_is_rejected_and_entry_stays_open(client, db_session, tmp_p
 def test_permanent_failure_needs_force(client, db_session, tmp_path, admin, mock_redis):
     data = _png_bytes()
     path = _write(tmp_path, "foto.png", data)
-    dl_id, _ = _seed_failed(db_session, file_path=path, file_hash=_sha(data), failure_kind="permanent")
+    dl_id, _ = _seed_failed(
+        db_session, file_path=path, file_hash=_sha(data), failure_kind="permanent"
+    )
 
     refused = _reprocess(client, dl_id, admin)
     assert refused.status_code == 409
@@ -145,7 +152,9 @@ def test_permanent_failure_needs_force(client, db_session, tmp_path, admin, mock
     assert forced.status_code == 200
 
 
-def test_legacy_entry_without_failure_kind_needs_force(client, db_session, tmp_path, admin, mock_redis):
+def test_legacy_entry_without_failure_kind_needs_force(
+    client, db_session, tmp_path, admin, mock_redis
+):
     data = _png_bytes()
     path = _write(tmp_path, "foto.png", data)
     dl_id, _ = _seed_failed(db_session, file_path=path, file_hash=_sha(data), failure_kind=None)
@@ -157,7 +166,9 @@ def test_legacy_entry_without_failure_kind_needs_force(client, db_session, tmp_p
     assert forced.status_code == 200
 
 
-def test_in_progress_task_for_same_file_blocks_reprocess(client, db_session, tmp_path, admin, mock_redis):
+def test_in_progress_task_for_same_file_blocks_reprocess(
+    client, db_session, tmp_path, admin, mock_redis
+):
     data = _png_bytes()
     path = _write(tmp_path, "foto.png", data)
     dl_id, _ = _seed_failed(db_session, file_path=path, file_hash=_sha(data))
@@ -175,7 +186,9 @@ def test_in_progress_task_for_same_file_blocks_reprocess(client, db_session, tmp
     client.mock_delay.assert_not_called()
 
 
-def test_completed_task_for_same_file_is_reused_without_enqueue(client, db_session, tmp_path, admin, mock_redis):
+def test_completed_task_for_same_file_is_reused_without_enqueue(
+    client, db_session, tmp_path, admin, mock_redis
+):
     data = _png_bytes()
     path = _write(tmp_path, "foto.png", data)
     dl_id, _ = _seed_failed(db_session, file_path=path, file_hash=_sha(data))
@@ -193,7 +206,11 @@ def test_completed_task_for_same_file_is_reused_without_enqueue(client, db_sessi
     response = _reprocess(client, dl_id, admin)
 
     assert response.status_code == 200
-    assert response.json() == {"dead_letter_id": dl_id, "task_id": completed_id, "status": "completed"}
+    assert response.json() == {
+        "dead_letter_id": dl_id,
+        "task_id": completed_id,
+        "status": "completed",
+    }
     client.mock_delay.assert_not_called()
     db_session.expire_all()
     dead_letter = db_session.get(DeadLetter, dl_id)
@@ -201,7 +218,9 @@ def test_completed_task_for_same_file_is_reused_without_enqueue(client, db_sessi
     assert dead_letter.reprocessed_task_id == completed_id
 
 
-def test_enqueue_failure_returns_503_and_records_new_dead_letter(client, db_session, tmp_path, admin, mock_redis):
+def test_enqueue_failure_returns_503_and_records_new_dead_letter(
+    client, db_session, tmp_path, admin, mock_redis
+):
     data = _png_bytes()
     path = _write(tmp_path, "foto.png", data)
     dl_id, _ = _seed_failed(db_session, file_path=path, file_hash=_sha(data))
@@ -227,10 +246,13 @@ def test_unknown_dead_letter_returns_404(client, admin):
     assert response.status_code == 404
 
 
-@pytest.mark.parametrize("method, url", [
-    ("get", "/tasks/dead-letters"),
-    ("post", "/tasks/dead-letters/qualquer/reprocess"),
-])
+@pytest.mark.parametrize(
+    "method, url",
+    [
+        ("get", "/tasks/dead-letters"),
+        ("post", "/tasks/dead-letters/qualquer/reprocess"),
+    ],
+)
 @pytest.mark.parametrize("headers", [{}, {"X-Admin-Key": "errada"}])
 def test_wrong_or_missing_admin_key_returns_401(client, admin, method, url, headers):
     response = getattr(client, method)(url, headers=headers)
@@ -239,10 +261,13 @@ def test_wrong_or_missing_admin_key_returns_401(client, admin, method, url, head
     assert response.json() == {"detail": "Invalid admin key"}
 
 
-@pytest.mark.parametrize("method, url", [
-    ("get", "/tasks/dead-letters"),
-    ("post", "/tasks/dead-letters/qualquer/reprocess"),
-])
+@pytest.mark.parametrize(
+    "method, url",
+    [
+        ("get", "/tasks/dead-letters"),
+        ("post", "/tasks/dead-letters/qualquer/reprocess"),
+    ],
+)
 def test_empty_admin_key_disables_admin_endpoints(client, monkeypatch, method, url):
     monkeypatch.setattr(settings, "admin_api_key", "")
 

@@ -1,6 +1,8 @@
 import uuid
-from sqlalchemy import Column, Index, String, DateTime, Integer, Text, text
+
+from sqlalchemy import Column, DateTime, Index, Integer, String, Text, text
 from sqlalchemy.sql import func
+
 from app.core.database import Base
 from app.core.task_status import DEAD_LETTER_OPEN, PENDING
 
@@ -37,7 +39,9 @@ class DeadLetter(Base):
     error_message = Column(Text, nullable=True)
     retry_count = Column(Integer, nullable=False, server_default="0")
     failure_kind = Column(String, nullable=True)
-    status = Column(String, nullable=False, default=DEAD_LETTER_OPEN, server_default=DEAD_LETTER_OPEN)
+    status = Column(
+        String, nullable=False, default=DEAD_LETTER_OPEN, server_default=DEAD_LETTER_OPEN
+    )
     reprocessed_at = Column(DateTime(timezone=True), nullable=True)
     reprocessed_task_id = Column(String, nullable=True)
     failed_at = Column(DateTime(timezone=True), server_default=func.now())

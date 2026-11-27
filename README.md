@@ -1,5 +1,7 @@
 # AsyncTask Hub: API de Processamento Assíncrono de Imagens (FastAPI + Celery)
 
+![CI](https://github.com/PedroHTLemos/async-task-hub/actions/workflows/ci.yml/badge.svg)
+
 API para upload e redimensionamento de imagens em background, construída com **FastAPI**, **Celery**, **Redis** e **PostgreSQL**. O projeto aplica padrões de processamento assíncrono em back-end: **fila de tarefas**, **idempotência por conteúdo**, **Dead Letter Queue**, **classificação de falhas com retry**, **graceful shutdown do worker** e **testes automatizados**.
 
 > Projeto de portfólio. O foco está no fluxo assíncrono e no tratamento de falhas, não no processamento de imagem em si.

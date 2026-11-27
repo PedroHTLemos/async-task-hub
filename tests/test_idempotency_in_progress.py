@@ -2,6 +2,7 @@
 Idempotência para uploads em andamento, corrida entre uploads iguais, falha
 no enfileiramento e proteção do worker contra mensagens tardias.
 """
+
 import hashlib
 import io
 import os
@@ -35,7 +36,9 @@ def _set_status(db_session, task_id, status):
 
 
 @pytest.mark.parametrize("status", ["pending", "processing", "retrying"])
-def test_second_upload_while_in_progress_returns_existing_task(client, db_session, tmp_path, status):
+def test_second_upload_while_in_progress_returns_existing_task(
+    client, db_session, tmp_path, status
+):
     png = _png_bytes()
     first_id = _upload(client, png).json()["task_id"]
     _set_status(db_session, first_id, status)
@@ -64,7 +67,9 @@ def test_upload_after_failed_task_creates_a_new_one(client, db_session):
     assert client.mock_delay.call_count == 2
 
 
-def test_race_between_identical_uploads_returns_winner_id(client, db_session, tmp_path, monkeypatch):
+def test_race_between_identical_uploads_returns_winner_id(
+    client, db_session, tmp_path, monkeypatch
+):
     png = _png_bytes()
     winner = TaskRecord(
         id="vencedora",
@@ -98,7 +103,9 @@ def test_race_between_identical_uploads_returns_winner_id(client, db_session, tm
     client.mock_delay.assert_not_called()
 
 
-def test_enqueue_failure_returns_503_and_dead_letters_task(client, db_session, tmp_path, mock_redis_dlq):
+def test_enqueue_failure_returns_503_and_dead_letters_task(
+    client, db_session, tmp_path, mock_redis_dlq
+):
     client.mock_delay.side_effect = kombu.exceptions.OperationalError("broker fora do ar")
     png = _png_bytes()
 
@@ -120,7 +127,9 @@ def test_enqueue_failure_returns_503_and_dead_letters_task(client, db_session, t
     assert os.path.exists(record.file_path)
 
 
-def test_new_upload_of_same_file_is_accepted_after_enqueue_failure(client, db_session, mock_redis_dlq):
+def test_new_upload_of_same_file_is_accepted_after_enqueue_failure(
+    client, db_session, mock_redis_dlq
+):
     png = _png_bytes()
     client.mock_delay.side_effect = kombu.exceptions.OperationalError("broker fora do ar")
     assert _upload(client, png).status_code == 503
@@ -159,8 +168,10 @@ def test_worker_skips_task_already_failed(eager, mock_redis_dlq):
     fake_db = MagicMock()
     fake_db.query.return_value.filter.return_value.first.return_value = record
 
-    with patch.object(database, "SessionLocal", return_value=fake_db), \
-         patch.object(worker_tasks.Image, "open") as mock_open:
+    with (
+        patch.object(database, "SessionLocal", return_value=fake_db),
+        patch.object(worker_tasks.Image, "open") as mock_open,
+    ):
         result = worker_tasks.process_image_task.apply(args=("fake-task-id", "/fake/x.png"))
 
     assert result.result["status"] == "skipped"

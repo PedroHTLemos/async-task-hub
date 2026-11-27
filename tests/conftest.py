@@ -5,6 +5,7 @@ Usamos SQLite em memória (isolado por teste) no lugar do Postgres real, e
 mockamos o `.delay()` do Celery — assim a suíte roda rápido, sem depender de
 Docker, Postgres ou Redis estarem de pé.
 """
+
 import io
 import os
 from unittest.mock import MagicMock

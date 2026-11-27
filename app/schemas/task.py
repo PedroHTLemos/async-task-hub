@@ -1,6 +1,6 @@
-from pydantic import BaseModel, ConfigDict
-from typing import Optional
 from datetime import datetime
+
+from pydantic import BaseModel, ConfigDict
 
 
 class TaskCreatedResponse(BaseModel):
@@ -11,8 +11,8 @@ class TaskCreatedResponse(BaseModel):
 class TaskStatusResponse(BaseModel):
     task_id: str
     status: str
-    result_url: Optional[str] = None
-    error_message: Optional[str] = None
+    result_url: str | None = None
+    error_message: str | None = None
     created_at: datetime
 
 
@@ -21,14 +21,14 @@ class DeadLetterResponse(BaseModel):
 
     id: str
     task_id: str
-    file_path: Optional[str] = None
-    error_message: Optional[str] = None
+    file_path: str | None = None
+    error_message: str | None = None
     retry_count: int
-    failure_kind: Optional[str] = None
+    failure_kind: str | None = None
     status: str
-    failed_at: Optional[datetime] = None
-    reprocessed_at: Optional[datetime] = None
-    reprocessed_task_id: Optional[str] = None
+    failed_at: datetime | None = None
+    reprocessed_at: datetime | None = None
+    reprocessed_task_id: str | None = None
 
 
 class ReprocessResponse(BaseModel):

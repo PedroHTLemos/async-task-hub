@@ -34,7 +34,8 @@ class Settings(BaseSettings):
         if self.stale_task_timeout_seconds <= largest_wait:
             raise ValueError(
                 f"stale_task_timeout_seconds ({self.stale_task_timeout_seconds}) deve ser "
-                f"maior que retry_backoff_max_seconds + retry_backoff_jitter_seconds ({largest_wait})"
+                "maior que retry_backoff_max_seconds + retry_backoff_jitter_seconds "
+                f"({largest_wait})"
             )
         return self
 

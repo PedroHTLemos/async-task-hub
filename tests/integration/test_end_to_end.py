@@ -4,6 +4,7 @@ Fluxo ponta a ponta com Postgres, Redis, broker e worker reais.
 Cobre o caminho feliz, o retry com backoff passando pelo broker, a DLQ e o
 reprocessamento, além da falha permanente que vai direto para a DLQ.
 """
+
 import errno
 from pathlib import Path
 
@@ -46,7 +47,9 @@ def test_upload_reaches_completed_with_resized_jpeg(api, redis_url):
     assert row["result_url"] == f"/static/processed/{task_id}.jpg"
 
 
-def test_transient_failure_retries_through_broker_then_dlq_then_reprocess(api, admin_headers, monkeypatch):
+def test_transient_failure_retries_through_broker_then_dlq_then_reprocess(
+    api, admin_headers, monkeypatch
+):
     """Falha de disco passa pelos retries reais, vai para a DLQ e é reprocessada depois."""
     monkeypatch.setattr(settings, "retry_backoff_base_seconds", 0.01)
     monkeypatch.setattr(settings, "retry_backoff_max_seconds", 0.05)
@@ -92,7 +95,9 @@ def test_transient_failure_retries_through_broker_then_dlq_then_reprocess(api, a
     new_task_id = response.json()["task_id"]
     assert new_task_id != task_id
 
-    wait_for(lambda: task_status(new_task_id) == "completed", description="tarefa reprocessada completed")
+    wait_for(
+        lambda: task_status(new_task_id) == "completed", description="tarefa reprocessada completed"
+    )
     assert (Path(settings.output_dir) / f"{new_task_id}.jpg").is_file()
 
     # A tarefa antiga continua failed, como histórico. A entrada da DLQ aponta para a nova.
