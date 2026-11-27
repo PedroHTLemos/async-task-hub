@@ -16,7 +16,16 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.core.database import Base, get_db
+from app.core.limiter import limiter
 from app.main import app
+
+
+@pytest.fixture(autouse=True)
+def reset_rate_limiter():
+    """Zera a contagem do rate limit antes de cada teste, para que uploads de
+    um teste não sejam contados no seguinte."""
+    limiter.reset()
+    yield
 
 
 @pytest.fixture()
@@ -55,17 +64,6 @@ def client(db_session, monkeypatch, tmp_path):
     # Redireciona o diretório de upload para uma pasta temporária só do
     # teste, em vez de gravar arquivos de verdade dentro do repositório.
     monkeypatch.setattr("app.api.tasks.UPLOAD_DIR", str(tmp_path))
-
-    # O evento de startup do FastAPI chama Base.metadata.create_all(bind=engine)
-    # contra o Postgres real. Nos testes, as tabelas já são criadas no SQLite
-    # de teste (ver fixture db_session) — então substituímos o `engine` usado
-    # pelo startup por um SQLite descartável, só para o evento não tentar
-    # conectar no Postgres real. (Patchear a função `create_tables` em si não
-    # funciona: o FastAPI já guardou a referência direta no momento do
-    # `@app.on_event`, então sobrescrever o nome no módulo depois não tem
-    # efeito — só patchear o `engine`, que é resolvido em tempo de execução.)
-    dummy_engine = create_engine("sqlite:///:memory:")
-    monkeypatch.setattr("app.main.engine", dummy_engine)
 
     mock_delay = MagicMock()
     monkeypatch.setattr("app.api.tasks.process_image_task.delay", mock_delay)

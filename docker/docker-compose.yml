@@ -29,6 +29,19 @@ services:
       timeout: 5s
       retries: 5
 
+  migrate:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: asynctask_migrate
+    restart: "no"
+    command: alembic upgrade head
+    env_file:
+      - ../.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   api:
     build:
       context: ..
@@ -44,6 +57,8 @@ services:
     env_file:
       - ../.env
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
@@ -62,6 +77,8 @@ services:
     env_file:
       - ../.env
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:

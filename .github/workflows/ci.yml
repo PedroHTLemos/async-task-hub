@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: sqlite://
+      REDIS_URL: redis://localhost:6379/0
+      CELERY_BROKER_URL: memory://
+      CELERY_RESULT_BACKEND: cache+memory://
+      RATE_LIMIT_STORAGE_URI: memory://
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Instala dependências de desenvolvimento
+        run: pip install -r requirements-dev.txt
+
+      - name: Testes
+        run: pytest -v
+
+  migrations:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: asynctask
+          POSTGRES_PASSWORD: asynctask
+          POSTGRES_DB: asynctask_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U asynctask -d asynctask_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://asynctask:asynctask@localhost:5432/asynctask_db
+      REDIS_URL: redis://localhost:6379/0
+      CELERY_BROKER_URL: memory://
+      CELERY_RESULT_BACKEND: cache+memory://
+      RATE_LIMIT_STORAGE_URI: memory://
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Instala dependências de produção
+        run: pip install -r requirements.txt
+
+      - name: Sobe o schema pela migration
+        run: alembic upgrade head
+
+      - name: Models e migrations não podem divergir
+        run: alembic check
+
+      - name: Downgrade completo e upgrade de novo
+        run: |
+          alembic downgrade base
+          alembic upgrade head
