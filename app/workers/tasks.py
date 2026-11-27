@@ -9,7 +9,7 @@ from app.core.task_status import COMPLETED, FAILED, PROCESSING, RETRYING
 from app.workers.backoff import compute_backoff
 from app.workers.celery_app import celery_app
 from app.workers.errors import PermanentTaskError, classify_decode_error
-from app.core.database import SessionLocal
+from app.core import database
 from app.core.config import settings
 from app.models import TaskRecord
 
@@ -76,7 +76,7 @@ def _mark_retrying(db, task_id: str, error_message: str) -> None:
     ignore_result=True,
 )
 def process_image_task(self, task_id: str, file_path: str):
-    db = SessionLocal()
+    db = database.SessionLocal()
     try:
         task = db.query(TaskRecord).filter(TaskRecord.id == task_id).first()
         if not task:

@@ -12,7 +12,7 @@ import pytest
 from PIL import Image
 
 import app.api.tasks as tasks_module
-from app.core import dead_letters
+from app.core import database, dead_letters
 from app.models import DeadLetter, TaskRecord
 from app.workers import tasks as worker_tasks
 from app.workers.celery_app import celery_app
@@ -159,7 +159,7 @@ def test_worker_skips_task_already_failed(eager, mock_redis_dlq):
     fake_db = MagicMock()
     fake_db.query.return_value.filter.return_value.first.return_value = record
 
-    with patch.object(worker_tasks, "SessionLocal", return_value=fake_db), \
+    with patch.object(database, "SessionLocal", return_value=fake_db), \
          patch.object(worker_tasks.Image, "open") as mock_open:
         result = worker_tasks.process_image_task.apply(args=("fake-task-id", "/fake/x.png"))
 

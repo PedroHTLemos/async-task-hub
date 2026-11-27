@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import func
 
 from app.core.config import settings
-from app.core.database import SessionLocal
+from app.core import database
 from app.core.dead_letters import record_dead_letter
 from app.core.task_status import IN_PROGRESS
 from app.models import TaskRecord
@@ -70,7 +70,7 @@ def _remove_old_part_files() -> int:
 
 @celery_app.task(name="sweep_stale_tasks", ignore_result=True)
 def sweep_stale_tasks():
-    db = SessionLocal()
+    db = database.SessionLocal()
     try:
         stale_failed = _fail_stale_tasks(db)
     finally:

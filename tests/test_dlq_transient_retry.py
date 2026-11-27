@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from app.workers.celery_app import celery_app
-from app.core import dead_letters
+from app.core import database, dead_letters
 from app.workers import tasks as worker_tasks
 
 
@@ -43,7 +43,7 @@ def test_transient_failure_retries_then_dead_letters(fake_task_record):
     fake_db = MagicMock()
     fake_db.query.return_value.filter.return_value.first.return_value = fake_task_record
 
-    with patch.object(worker_tasks, "SessionLocal", return_value=fake_db), \
+    with patch.object(database, "SessionLocal", return_value=fake_db), \
          patch.object(dead_letters, "redis_client") as mock_redis, \
          patch.object(worker_tasks.Image, "open", side_effect=FakeTransientError("simulated network blip")):
 
@@ -75,7 +75,7 @@ def test_permanent_failure_skips_retries_entirely(fake_task_record):
 
     from PIL import UnidentifiedImageError
 
-    with patch.object(worker_tasks, "SessionLocal", return_value=fake_db), \
+    with patch.object(database, "SessionLocal", return_value=fake_db), \
          patch.object(dead_letters, "redis_client") as mock_redis, \
          patch.object(worker_tasks.Image, "open", side_effect=UnidentifiedImageError("bad image")) as mock_open:
 
