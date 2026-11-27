@@ -54,6 +54,11 @@ services:
       - ../app:/code/app
     ports:
       - "8000:8000"
+    # Lookups de "redis" com Redis parado: sem isso cada tentativa leva ~3,3 s
+    # (resolvedor padrão). Com timeout:1 attempts:1, cai para ~1 s.
+    dns_opt:
+      - timeout:1
+      - attempts:1
     env_file:
       - ../.env
     depends_on:
@@ -74,6 +79,11 @@ services:
     stop_grace_period: 30s
     volumes:
       - ../app:/code/app
+    # Lookups de "redis" com Redis parado: sem isso cada tentativa leva ~3,3 s
+    # (resolvedor padrão). Com timeout:1 attempts:1, cai para ~1 s.
+    dns_opt:
+      - timeout:1
+      - attempts:1
     env_file:
       - ../.env
     depends_on:
@@ -81,6 +91,29 @@ services:
         condition: service_completed_successfully
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # Apenas uma instância de beat: duas disparariam a rotina em dobro.
+  beat:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: asynctask_beat
+    restart: unless-stopped
+    command: celery -A app.workers.celery_app beat --loglevel=info --schedule /tmp/celerybeat-schedule
+    volumes:
+      - ../app:/code/app
+    # Lookups de "redis" com Redis parado: sem isso cada tentativa leva ~3,3 s
+    # (resolvedor padrão). Com timeout:1 attempts:1, cai para ~1 s.
+    dns_opt:
+      - timeout:1
+      - attempts:1
+    env_file:
+      - ../.env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 

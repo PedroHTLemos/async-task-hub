@@ -17,6 +17,7 @@ from PIL import Image, UnidentifiedImageError
 from sqlalchemy.exc import OperationalError
 
 from app.core.config import settings
+from app.core import dead_letters
 from app.workers import tasks as worker_tasks
 from app.workers.backoff import compute_backoff
 from app.workers.celery_app import celery_app
@@ -47,7 +48,7 @@ def fake_db(fake_task_record):
 
 @pytest.fixture
 def mock_redis():
-    with patch.object(worker_tasks, "redis_client") as client:
+    with patch.object(dead_letters, "redis_client") as client:
         yield client
 
 
