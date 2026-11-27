@@ -11,7 +11,11 @@ logger = logging.getLogger(__name__)
 
 DLQ_REDIS_KEY = "dlq:failed_tasks"
 
-redis_client = redis.from_url(settings.redis_url)
+redis_client = redis.from_url(
+    settings.redis_url,
+    socket_connect_timeout=settings.redis_socket_timeout_seconds,
+    socket_timeout=settings.redis_socket_timeout_seconds,
+)
 
 
 def record_dead_letter(

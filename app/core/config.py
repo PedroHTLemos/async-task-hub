@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     stale_task_timeout_seconds: int = 600
     sweep_interval_seconds: int = 60
     part_file_max_age_seconds: int = 3600
+    redis_socket_timeout_seconds: float = 2.0
+    broker_publish_max_retries: int = 1
 
     @model_validator(mode="after")
     def _stale_timeout_must_exceed_max_backoff(self):

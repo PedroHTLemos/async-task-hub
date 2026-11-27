@@ -69,7 +69,7 @@ def _remove_old_part_files() -> int:
     return removed
 
 
-@celery_app.task(name="sweep_stale_tasks")
+@celery_app.task(name="sweep_stale_tasks", ignore_result=True)
 def sweep_stale_tasks():
     db = SessionLocal()
     try:

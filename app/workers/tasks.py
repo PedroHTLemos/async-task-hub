@@ -61,10 +61,14 @@ def _mark_retrying(db, task_id: str, error_message: str) -> None:
         db.commit()
 
 
+# O status fica no Postgres e nenhum código lê resultados do Celery. Com
+# ignore_result, o publish não consulta o backend Redis, que levava ~90 s para
+# desistir quando o Redis estava fora do ar.
 @celery_app.task(
     name="process_image_task",
     bind=True,
     max_retries=settings.task_max_retries,
+    ignore_result=True,
 )
 def process_image_task(self, task_id: str, file_path: str):
     db = SessionLocal()
