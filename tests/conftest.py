@@ -6,7 +6,18 @@ mockamos o `.delay()` do Celery — assim a suíte roda rápido, sem depender de
 Docker, Postgres ou Redis estarem de pé.
 """
 import io
+import os
 from unittest.mock import MagicMock
+
+# As variáveis de ambiente têm prioridade sobre o .env no pydantic-settings. Por
+# isso, definimos aqui (antes de importar app) as mesmas variáveis do CI, e os
+# testes nunca dependem do .env local. A atribuição é direta, sem setdefault,
+# para que um valor exportado no shell não mude o comportamento da suíte.
+os.environ["DATABASE_URL"] = "sqlite://"
+os.environ["REDIS_URL"] = "redis://localhost:6379/0"
+os.environ["CELERY_BROKER_URL"] = "memory://"
+os.environ["CELERY_RESULT_BACKEND"] = "cache+memory://"
+os.environ["RATE_LIMIT_STORAGE_URI"] = "memory://"
 
 import pytest
 from fastapi.testclient import TestClient

@@ -5,13 +5,13 @@ e validação da relação entre stale_task_timeout e o backoff.
 import os
 import time
 from datetime import datetime, timedelta, timezone
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from pydantic import ValidationError
 from sqlalchemy.orm import sessionmaker
 
-from app.core import dead_letters
+from app.core import database, dead_letters
 from app.core.config import Settings, settings
 from app.models import DeadLetter, TaskRecord
 from app.workers import maintenance
@@ -19,7 +19,7 @@ from app.workers import maintenance
 
 @pytest.fixture
 def sweep(db_session, tmp_path, monkeypatch):
-    monkeypatch.setattr(maintenance, "SessionLocal", sessionmaker(bind=db_session.get_bind()))
+    monkeypatch.setattr(database, "SessionLocal", sessionmaker(bind=db_session.get_bind()))
     monkeypatch.setattr(settings, "upload_dir", str(tmp_path))
     monkeypatch.setattr(settings, "stale_task_timeout_seconds", 600)
     monkeypatch.setattr(settings, "part_file_max_age_seconds", 3600)

@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from app.core.body_limit import BodyLimitMiddleware
 from app.core.limiter import limiter
 from app.core.config import settings
-from app.core.database import engine
+from app.core import database
 from app.api import tasks
 
 
@@ -16,7 +16,7 @@ from app.api import tasks
 async def lifespan(app: FastAPI):
     os.makedirs(settings.upload_dir, exist_ok=True)
     yield
-    engine.dispose()
+    database.engine.dispose()
 
 
 app = FastAPI(

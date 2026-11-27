@@ -17,7 +17,7 @@ from PIL import Image, UnidentifiedImageError
 from sqlalchemy.exc import OperationalError
 
 from app.core.config import settings
-from app.core import dead_letters
+from app.core import database, dead_letters
 from app.workers import tasks as worker_tasks
 from app.workers.backoff import compute_backoff
 from app.workers.celery_app import celery_app
@@ -60,7 +60,7 @@ def output_dir(tmp_path, monkeypatch):
 
 
 def _run(fake_db, path):
-    with patch.object(worker_tasks, "SessionLocal", return_value=fake_db):
+    with patch.object(database, "SessionLocal", return_value=fake_db):
         return worker_tasks.process_image_task.apply(args=("fake-task-id", str(path)))
 
 
