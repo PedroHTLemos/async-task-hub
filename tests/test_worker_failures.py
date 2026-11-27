@@ -54,7 +54,7 @@ def mock_redis():
 
 @pytest.fixture
 def output_dir(tmp_path, monkeypatch):
-    monkeypatch.setattr(worker_tasks, "OUTPUT_DIR", str(tmp_path / "out"))
+    monkeypatch.setattr(settings, "output_dir", str(tmp_path / "out"))
     (tmp_path / "out").mkdir()
     return tmp_path / "out"
 

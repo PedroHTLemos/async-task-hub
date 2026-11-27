@@ -20,7 +20,7 @@ from app.workers import maintenance
 @pytest.fixture
 def sweep(db_session, tmp_path, monkeypatch):
     monkeypatch.setattr(maintenance, "SessionLocal", sessionmaker(bind=db_session.get_bind()))
-    monkeypatch.setattr(maintenance, "UPLOAD_DIR", str(tmp_path))
+    monkeypatch.setattr(settings, "upload_dir", str(tmp_path))
     monkeypatch.setattr(settings, "stale_task_timeout_seconds", 600)
     monkeypatch.setattr(settings, "part_file_max_age_seconds", 3600)
     with patch.object(dead_letters, "redis_client"):

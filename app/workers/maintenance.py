@@ -14,7 +14,6 @@ from app.workers.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 
-UPLOAD_DIR = "app/static/uploads"
 SWEEP_BATCH_SIZE = 100
 
 
@@ -51,15 +50,15 @@ def _fail_stale_tasks(db) -> int:
 
 def _remove_old_part_files() -> int:
     """Remove .part órfãos, deixados por uploads que morreram no meio."""
-    if not os.path.isdir(UPLOAD_DIR):
+    if not os.path.isdir(settings.upload_dir):
         return 0
 
     cutoff = time.time() - settings.part_file_max_age_seconds
     removed = 0
-    for name in os.listdir(UPLOAD_DIR):
+    for name in os.listdir(settings.upload_dir):
         if not name.endswith(".part"):
             continue
-        path = os.path.join(UPLOAD_DIR, name)
+        path = os.path.join(settings.upload_dir, name)
         try:
             if os.path.getmtime(path) < cutoff:
                 os.remove(path)
