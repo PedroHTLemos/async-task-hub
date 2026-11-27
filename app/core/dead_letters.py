@@ -67,7 +67,9 @@ def remove_notification(dead_letter: DeadLetter) -> None:
     Como no registro, o Postgres é a fonte da verdade: se o LREM falhar, a
     entrada continua marcada como reprocessed e só sobra um item na lista.
     """
-    payload = _notification_payload(dead_letter.task_id, dead_letter.file_path, dead_letter.error_message)
+    payload = _notification_payload(
+        dead_letter.task_id, dead_letter.file_path, dead_letter.error_message
+    )
     try:
         redis_client.lrem(DLQ_REDIS_KEY, 0, payload)
     except Exception:

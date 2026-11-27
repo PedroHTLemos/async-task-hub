@@ -14,6 +14,7 @@ O worker do Celery roda no próprio processo de teste, com o pool solo. A API
 é servida por uvicorn numa thread de fundo, para que requisições concorrentes
 cheguem de fato ao mesmo tempo.
 """
+
 import os
 import shutil
 import socket
@@ -45,7 +46,10 @@ ADMIN_KEY = "chave-de-integracao"
 
 
 def pytest_collection_modifyitems(items):
-    """Marca como `integration` todo teste desta pasta, para `pytest -m integration` selecioná-los."""
+    """Marca como `integration` todo teste desta pasta.
+
+    Assim, `pytest -m integration` consegue selecioná-los.
+    """
     folder = Path(__file__).parent
     for item in items:
         if folder in Path(item.path).parents:
@@ -86,7 +90,10 @@ def redis_url(redis_container):
 
 @pytest.fixture(scope="session")
 def migrated_pg_url(postgres_container):
-    """Cria o schema com as migrations, e não com create_all, para testar também a 0003 (índice parcial)."""
+    """Cria o schema com as migrations, e não com create_all.
+
+    Assim o teste também cobre a 0003 (índice parcial).
+    """
     url = postgres_container.get_connection_url()
     env = {**os.environ, "DATABASE_URL": url}
     result = subprocess.run(

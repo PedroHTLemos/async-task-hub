@@ -2,14 +2,15 @@ import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
-from slowapi.errors import RateLimitExceeded
-from slowapi import _rate_limit_exceeded_handler
 from fastapi.staticfiles import StaticFiles
-from app.core.body_limit import BodyLimitMiddleware
-from app.core.limiter import limiter
-from app.core.config import settings
-from app.core import database
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+
 from app.api import tasks
+from app.core import database
+from app.core.body_limit import BodyLimitMiddleware
+from app.core.config import settings
+from app.core.limiter import limiter
 
 
 @asynccontextmanager

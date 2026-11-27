@@ -1,12 +1,12 @@
 import logging
 import os
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func
 
-from app.core.config import settings
 from app.core import database
+from app.core.config import settings
 from app.core.dead_letters import record_dead_letter
 from app.core.task_status import IN_PROGRESS
 from app.models import TaskRecord
@@ -22,7 +22,7 @@ def _fail_stale_tasks(db) -> int:
     que stale_task_timeout_seconds. Cada uma vai para a DLQ com failure_kind
     transient, o que libera o índice único para um novo upload do arquivo."""
     timeout = settings.stale_task_timeout_seconds
-    cutoff = datetime.now(timezone.utc) - timedelta(seconds=timeout)
+    cutoff = datetime.now(UTC) - timedelta(seconds=timeout)
 
     stale = (
         db.query(TaskRecord)

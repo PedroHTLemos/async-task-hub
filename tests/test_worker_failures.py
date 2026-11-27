@@ -6,6 +6,7 @@ exponencial com jitter.
 Como em test_dlq_transient_retry.py, o Celery roda em modo eager e o banco e
 o Redis são mocks. Os arquivos de imagem são reais, gravados em tmp_path.
 """
+
 import errno
 import io
 import random
@@ -16,8 +17,8 @@ import redis
 from PIL import Image, UnidentifiedImageError
 from sqlalchemy.exc import OperationalError
 
-from app.core.config import settings
 from app.core import database, dead_letters
+from app.core.config import settings
 from app.workers import tasks as worker_tasks
 from app.workers.backoff import compute_backoff
 from app.workers.celery_app import celery_app
@@ -82,7 +83,9 @@ def _write(path, data: bytes):
     return path
 
 
-def test_truncated_jpeg_goes_straight_to_dlq(tmp_path, fake_db, fake_task_record, mock_redis, output_dir):
+def test_truncated_jpeg_goes_straight_to_dlq(
+    tmp_path, fake_db, fake_task_record, mock_redis, output_dir
+):
     data = _real_jpeg_bytes()
     path = _write(tmp_path / "cortada.jpg", data[: len(data) // 2])
 
@@ -97,7 +100,9 @@ def test_truncated_jpeg_goes_straight_to_dlq(tmp_path, fake_db, fake_task_record
     assert dead_letter.retry_count == 0
 
 
-def test_text_file_named_jpg_is_permanent(tmp_path, fake_db, fake_task_record, mock_redis, output_dir):
+def test_text_file_named_jpg_is_permanent(
+    tmp_path, fake_db, fake_task_record, mock_redis, output_dir
+):
     path = _write(tmp_path / "texto.jpg", b"isto nao e uma imagem nenhuma" * 10)
 
     _run(fake_db, path)
@@ -114,7 +119,9 @@ def test_missing_file_is_permanent(tmp_path, fake_db, fake_task_record, mock_red
     assert dead_letter.retry_count == 0
 
 
-def test_decompression_bomb_is_permanent(tmp_path, fake_db, fake_task_record, mock_redis, output_dir, monkeypatch):
+def test_decompression_bomb_is_permanent(
+    tmp_path, fake_db, fake_task_record, mock_redis, output_dir, monkeypatch
+):
     monkeypatch.setattr(Image, "MAX_IMAGE_PIXELS", 1000)
     path = tmp_path / "bomba.png"
     Image.new("RGB", (40, 40)).save(path, format="PNG")
@@ -126,9 +133,13 @@ def test_decompression_bomb_is_permanent(tmp_path, fake_db, fake_task_record, mo
     assert dead_letter.retry_count == 0
 
 
-def test_eio_on_save_is_retried_until_dead_letter(tmp_path, fake_db, fake_task_record, mock_redis, output_dir, monkeypatch):
+def test_eio_on_save_is_retried_until_dead_letter(
+    tmp_path, fake_db, fake_task_record, mock_redis, output_dir, monkeypatch
+):
     path = _write(tmp_path / "ok.jpg", _real_jpeg_bytes())
-    monkeypatch.setattr(Image.Image, "save", MagicMock(side_effect=OSError(errno.EIO, "disco com erro")))
+    monkeypatch.setattr(
+        Image.Image, "save", MagicMock(side_effect=OSError(errno.EIO, "disco com erro"))
+    )
 
     with patch.object(worker_tasks, "compute_backoff", return_value=0.0) as mock_backoff:
         result = _run(fake_db, path)
@@ -140,12 +151,18 @@ def test_eio_on_save_is_retried_until_dead_letter(tmp_path, fake_db, fake_task_r
     assert dead_letter.retry_count == settings.task_max_retries
 
 
-def test_eio_on_open_is_transient_because_of_errno(tmp_path, fake_db, fake_task_record, mock_redis, output_dir):
+def test_eio_on_open_is_transient_because_of_errno(
+    tmp_path, fake_db, fake_task_record, mock_redis, output_dir
+):
     # Mesmo sendo OSError, errno preenchido significa erro de I/O passageiro.
     path = _write(tmp_path / "ok.jpg", _real_jpeg_bytes())
 
-    with patch.object(worker_tasks.Image, "open", side_effect=OSError(errno.EIO, "falha de leitura")), \
-         patch.object(worker_tasks, "compute_backoff", return_value=0.0) as mock_backoff:
+    with (
+        patch.object(
+            worker_tasks.Image, "open", side_effect=OSError(errno.EIO, "falha de leitura")
+        ),
+        patch.object(worker_tasks, "compute_backoff", return_value=0.0) as mock_backoff,
+    ):
         _run(fake_db, path)
 
     assert mock_backoff.call_count == settings.task_max_retries
@@ -154,11 +171,15 @@ def test_eio_on_open_is_transient_because_of_errno(tmp_path, fake_db, fake_task_
     assert dead_letter.retry_count == settings.task_max_retries
 
 
-def test_retry_countdown_comes_from_compute_backoff(tmp_path, fake_db, fake_task_record, mock_redis, output_dir):
+def test_retry_countdown_comes_from_compute_backoff(
+    tmp_path, fake_db, fake_task_record, mock_redis, output_dir
+):
     path = _write(tmp_path / "ok.jpg", _real_jpeg_bytes())
 
-    with patch.object(worker_tasks.Image, "open", side_effect=OSError(errno.EIO, "falha")), \
-         patch.object(worker_tasks, "compute_backoff", return_value=0.0) as mock_backoff:
+    with (
+        patch.object(worker_tasks.Image, "open", side_effect=OSError(errno.EIO, "falha")),
+        patch.object(worker_tasks, "compute_backoff", return_value=0.0) as mock_backoff,
+    ):
         _run(fake_db, path)
 
     retries_seen = [c.args[0] for c in mock_backoff.call_args_list]
@@ -171,7 +192,9 @@ def test_retry_countdown_comes_from_compute_backoff(tmp_path, fake_db, fake_task
         )
 
 
-def test_redis_failure_does_not_break_dead_letter(tmp_path, fake_db, fake_task_record, mock_redis, output_dir):
+def test_redis_failure_does_not_break_dead_letter(
+    tmp_path, fake_db, fake_task_record, mock_redis, output_dir
+):
     path = _write(tmp_path / "cortada.jpg", _real_jpeg_bytes()[:500])
     mock_redis.lpush.side_effect = redis.exceptions.ConnectionError("redis fora do ar")
 
@@ -183,7 +206,9 @@ def test_redis_failure_does_not_break_dead_letter(tmp_path, fake_db, fake_task_r
     assert fake_db.add.call_count == 1
 
 
-def test_db_error_rolls_back_before_any_query_in_except(tmp_path, fake_db, fake_task_record, mock_redis, output_dir):
+def test_db_error_rolls_back_before_any_query_in_except(
+    tmp_path, fake_db, fake_task_record, mock_redis, output_dir
+):
     path = _write(tmp_path / "ok.jpg", _real_jpeg_bytes())
     # Só o primeiro commit (status "processing") falha; os demais funcionam.
     fake_db.commit.side_effect = [

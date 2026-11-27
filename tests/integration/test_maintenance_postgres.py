@@ -5,8 +5,9 @@ Chamamos a tarefa diretamente, sem o beat. Assim o teste valida o
 FOR UPDATE SKIP LOCKED e o COALESCE no dialeto do Postgres, que o SQLite
 ignorava.
 """
+
 import threading
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import text
 
@@ -18,7 +19,9 @@ from app.workers.maintenance import sweep_stale_tasks
 from tests.integration.helpers import dead_letters_for, task_row
 
 
-def _insert_task(task_id: str, status: str, created_at: datetime, file_path: str | None = None) -> None:
+def _insert_task(
+    task_id: str, status: str, created_at: datetime, file_path: str | None = None
+) -> None:
     with database.SessionLocal() as session:
         session.add(
             TaskRecord(
@@ -33,7 +36,7 @@ def _insert_task(task_id: str, status: str, created_at: datetime, file_path: str
 
 
 def _ago(seconds: int) -> datetime:
-    return datetime.now(timezone.utc) - timedelta(seconds=seconds)
+    return datetime.now(UTC) - timedelta(seconds=seconds)
 
 
 def test_stale_pending_task_is_failed_and_dead_lettered(monkeypatch):

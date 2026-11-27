@@ -4,6 +4,7 @@ Teste do rate limit de POST /process/image.
 Prova que o limite vem de settings.rate_limit_per_minute e não de um valor
 fixo no decorador.
 """
+
 import io
 from unittest.mock import MagicMock
 

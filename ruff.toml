@@ -1,0 +1,17 @@
+target-version = "py312"
+line-length = 100
+
+# Migrations ficam como foram escritas. Ruff 0.17 não tem exclusão só para o format,
+# então a exclusão vale para lint e format.
+extend-exclude = ["alembic/versions"]
+
+[lint]
+select = ["E", "F", "I", "B", "UP"]
+
+# Padrão do FastAPI: Depends(), Query(), File() etc. nos parâmetros são declarativos, não erro de B008.
+[lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.File", "fastapi.Header", "fastapi.Path"]
+
+[lint.isort]
+known-first-party = ["app", "tests"]
+known-third-party = ["alembic"]

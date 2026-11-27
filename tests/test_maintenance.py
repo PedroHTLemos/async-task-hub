@@ -2,9 +2,10 @@
 Rotina de tarefas travadas e de .part órfãos (app/workers/maintenance.py),
 e validação da relação entre stale_task_timeout e o backoff.
 """
+
 import os
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
 import pytest
@@ -42,7 +43,7 @@ def _add_task(db, task_id, status, created_at, updated_at=None, file_path=None):
 
 
 def _ago(seconds):
-    return datetime.now(timezone.utc) - timedelta(seconds=seconds)
+    return datetime.now(UTC) - timedelta(seconds=seconds)
 
 
 def test_stale_pending_task_is_failed_and_dead_lettered(db_session, sweep):
@@ -138,4 +139,7 @@ def test_default_settings_satisfy_the_stale_timeout_rule():
         celery_broker_url="memory://",
         celery_result_backend="cache+memory://",
     )
-    assert valid.stale_task_timeout_seconds > valid.retry_backoff_max_seconds + valid.retry_backoff_jitter_seconds
+    assert (
+        valid.stale_task_timeout_seconds
+        > valid.retry_backoff_max_seconds + valid.retry_backoff_jitter_seconds
+    )

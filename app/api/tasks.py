@@ -2,25 +2,20 @@ import contextlib
 import hashlib
 import os
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Literal
-from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Query, Request
+
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.dead_letters import record_dead_letter, remove_notification
-from app.models import TaskRecord, DeadLetter
-from app.core.security import require_admin
-from app.schemas.task import (
-    DeadLetterResponse,
-    ReprocessResponse,
-    TaskCreatedResponse,
-    TaskStatusResponse,
-)
-from app.workers.tasks import process_image_task
-from app.core.config import settings
 from app.core.file_types import detect_image_type
+from app.core.limiter import limiter
+from app.core.security import require_admin
 from app.core.task_status import (
     COMPLETED,
     DEAD_LETTER_OPEN,
@@ -28,9 +23,17 @@ from app.core.task_status import (
     IN_PROGRESS,
     PENDING,
 )
-from app.core.limiter import limiter
+from app.models import DeadLetter, TaskRecord
+from app.schemas.task import (
+    DeadLetterResponse,
+    ReprocessResponse,
+    TaskCreatedResponse,
+    TaskStatusResponse,
+)
+from app.workers.tasks import process_image_task
 
 router = APIRouter()
+
 
 def _upload_rate_limit() -> str:
     # slowapi chama este callable a cada requisição, então a leitura de
@@ -151,7 +154,7 @@ def process_image(request: Request, file: UploadFile = File(...), db: Session = 
 
         try:
             process_image_task.delay(task_id, saved_path)
-        except Exception:
+        except Exception as exc:
             # Marca como failed, o que libera o índice. O arquivo fica no disco
             # para ser reprocessado depois.
             record_dead_letter(
@@ -165,7 +168,7 @@ def process_image(request: Request, file: UploadFile = File(...), db: Session = 
             raise HTTPException(
                 status_code=503,
                 detail="Task queue unavailable, try again later",
-            )
+            ) from exc
 
         return TaskCreatedResponse(task_id=task_id, status=PENDING)
     finally:
@@ -222,10 +225,7 @@ def reprocess_dead_letter(
     qualquer outro caso, cria uma tarefa nova e preserva a antiga como failed.
     """
     dead_letter = (
-        db.query(DeadLetter)
-        .filter(DeadLetter.id == dead_letter_id)
-        .with_for_update()
-        .first()
+        db.query(DeadLetter).filter(DeadLetter.id == dead_letter_id).with_for_update().first()
     )
     if dead_letter is None:
         db.rollback()
@@ -262,7 +262,7 @@ def reprocess_dead_letter(
         .filter(TaskRecord.file_hash == file_hash, TaskRecord.status == COMPLETED)
         .first()
     )
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     if completed:
         dead_letter.status = DEAD_LETTER_REPROCESSED
@@ -307,7 +307,7 @@ def reprocess_dead_letter(
     file_path = dead_letter.file_path
     try:
         process_image_task.delay(new_task_id, file_path)
-    except Exception:
+    except Exception as exc:
         record_dead_letter(
             db,
             new_task_id,
@@ -319,7 +319,7 @@ def reprocess_dead_letter(
         raise HTTPException(
             status_code=503,
             detail="Task queue unavailable, try again later",
-        )
+        ) from exc
 
     return ReprocessResponse(
         dead_letter_id=dead_letter_id,

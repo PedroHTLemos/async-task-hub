@@ -2,6 +2,7 @@
 Testes de integração da API (rotas em app/api/tasks.py), usando o
 TestClient do FastAPI + SQLite em memória + Celery mockado (ver conftest.py).
 """
+
 import pytest
 
 from app.core.config import settings
@@ -139,6 +140,7 @@ def test_dead_letters_route_does_not_collide_with_task_id_route(client, admin_he
 
 def _jpeg_bytes(color: str) -> bytes:
     import io
+
     from PIL import Image
 
     buffer = io.BytesIO()

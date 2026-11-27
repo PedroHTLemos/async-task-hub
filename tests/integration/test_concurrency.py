@@ -5,6 +5,7 @@ Os testes usam uvicorn de verdade e threads de cliente. Para provar que a
 corrida aconteceu, as requisições são forçadas a se encontrar numa barreira
 logo antes do INSERT, e o teste confirma que todas passaram por ela.
 """
+
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -115,7 +116,7 @@ def _insert_transient_failure(content: bytes) -> str:
 
 
 def _count_lock_waiters_on_dead_letters() -> int:
-    """Conta sessões que estão esperando um lock dentro de um SELECT ... FOR UPDATE em dead_letters."""
+    """Conta sessões esperando lock num SELECT ... FOR UPDATE em dead_letters."""
     query = text(
         """
         SELECT count(*) FROM pg_stat_activity
@@ -194,7 +195,9 @@ def test_two_simultaneous_reprocess_calls_on_same_entry(api, admin_headers, monk
     assert response_b.json()["detail"] == "Dead letter already reprocessed"
 
     new_task_id = response_a.json()["task_id"]
-    wait_for(lambda: task_status(new_task_id) == "completed", description="tarefa reprocessada completed")
+    wait_for(
+        lambda: task_status(new_task_id) == "completed", description="tarefa reprocessada completed"
+    )
 
     # Uma única tarefa nova: a original mais a reprocessada.
     assert count_tasks() == 2

@@ -4,18 +4,20 @@ import warnings
 
 from celery.signals import worker_process_init
 from PIL import Image
+
+from app.core import database
+from app.core.config import settings
 from app.core.dead_letters import record_dead_letter
 from app.core.task_status import COMPLETED, FAILED, PROCESSING, RETRYING
+from app.models import TaskRecord
 from app.workers.backoff import compute_backoff
 from app.workers.celery_app import celery_app
 from app.workers.errors import PermanentTaskError, classify_decode_error
-from app.core import database
-from app.core.config import settings
-from app.models import TaskRecord
 
 Image.MAX_IMAGE_PIXELS = settings.max_image_pixels
 
 logger = logging.getLogger(__name__)
+
 
 @worker_process_init.connect
 def _ensure_output_dir(**kwargs) -> None:
@@ -138,7 +140,8 @@ def process_image_task(self, task_id: str, file_path: str):
             settings.retry_backoff_max_seconds,
             settings.retry_backoff_jitter_seconds,
         )
-        raise self.retry(exc=exc, countdown=countdown)
+        # self.retry() já lança Retry; o raise é só idioma do Celery, sem `from exc`.
+        raise self.retry(exc=exc, countdown=countdown)  # noqa: B904
 
     finally:
         db.close()

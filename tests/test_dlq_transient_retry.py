@@ -7,13 +7,14 @@ Não depende de Docker/Postgres/Redis reais: o Celery roda em modo "eager"
 (síncrono, dentro do próprio processo de teste) e as dependências externas
 (SessionLocal, redis_client) são substituídas por mocks.
 """
+
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from app.workers.celery_app import celery_app
 from app.core import database, dead_letters
 from app.workers import tasks as worker_tasks
+from app.workers.celery_app import celery_app
 
 
 class FakeTransientError(Exception):
@@ -43,10 +44,13 @@ def test_transient_failure_retries_then_dead_letters(fake_task_record):
     fake_db = MagicMock()
     fake_db.query.return_value.filter.return_value.first.return_value = fake_task_record
 
-    with patch.object(database, "SessionLocal", return_value=fake_db), \
-         patch.object(dead_letters, "redis_client") as mock_redis, \
-         patch.object(worker_tasks.Image, "open", side_effect=FakeTransientError("simulated network blip")):
-
+    with (
+        patch.object(database, "SessionLocal", return_value=fake_db),
+        patch.object(dead_letters, "redis_client") as mock_redis,
+        patch.object(
+            worker_tasks.Image, "open", side_effect=FakeTransientError("simulated network blip")
+        ),
+    ):
         result = worker_tasks.process_image_task.apply(
             args=("fake-task-id", "/fake/path/image.jpg")
         )
@@ -75,10 +79,13 @@ def test_permanent_failure_skips_retries_entirely(fake_task_record):
 
     from PIL import UnidentifiedImageError
 
-    with patch.object(database, "SessionLocal", return_value=fake_db), \
-         patch.object(dead_letters, "redis_client") as mock_redis, \
-         patch.object(worker_tasks.Image, "open", side_effect=UnidentifiedImageError("bad image")) as mock_open:
-
+    with (
+        patch.object(database, "SessionLocal", return_value=fake_db),
+        patch.object(dead_letters, "redis_client") as mock_redis,
+        patch.object(
+            worker_tasks.Image, "open", side_effect=UnidentifiedImageError("bad image")
+        ) as mock_open,
+    ):
         result = worker_tasks.process_image_task.apply(
             args=("fake-task-id", "/fake/path/image.jpg")
         )

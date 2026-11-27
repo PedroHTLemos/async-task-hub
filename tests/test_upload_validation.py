@@ -3,6 +3,7 @@ Validação do upload em POST /process/image: tamanho (middleware + endpoint),
 tipo real pelos magic bytes, limpeza de arquivos temporários e proteção
 contra decompression bomb no worker.
 """
+
 import io
 import os
 

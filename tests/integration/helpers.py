@@ -4,6 +4,7 @@ Utilitários dos testes de integração: espera determinística e leitura do ban
 Os testes não usam tempo fixo de espera. Eles repetem uma verificação com
 `wait_for` até o resultado aparecer ou até o prazo estourar.
 """
+
 import hashlib
 import io
 import time
@@ -53,7 +54,10 @@ def task_status(task_id: str) -> str | None:
 
 
 def task_row(task_id: str) -> dict | None:
-    """Lê a tarefa numa sessão nova. Devolve um dict, para não depender de objetos ligados à sessão."""
+    """Lê a tarefa numa sessão nova.
+
+    Devolve um dict, para não depender de objetos ligados à sessão.
+    """
     with database.SessionLocal() as session:
         task = session.get(TaskRecord, task_id)
         if task is None:
