@@ -8,8 +8,35 @@ API de upload com processamento assíncrono de imagens, construída com **FastAP
 
 > Projeto complementar: [API Gateway com Rate Limiting e Cache](https://github.com/PedroHTLemos/api-gateway-rate-limit-cache).
 
+## Destaques
+
+- **503 com o Redis fora do ar caiu de 97 s para ~6 s.** A causa medida estava no result backend do Celery, não no broker ([decisão 9](#9-redis-fora-do-ar-falhar-rápido-e-degradar-por-papel)).
+- **10 uploads simultâneos do mesmo arquivo geram uma única tarefa.** O índice único parcial no PostgreSQL faz o papel de trava, e um teste de integração prova a simultaneidade com uma barreira ([decisão 2](#2-índice-único-parcial-no-postgres-em-vez-de-lock-no-redis)).
+- **Falhas classificadas pela fase e pelo `errno`,** com DLQ no PostgreSQL e reprocessamento administrativo protegido por `SELECT ... FOR UPDATE` ([decisões 1 e 3](#1-classificar-falhas-pela-fase-e-pelo-errno)).
+- **94 testes:** 87 rápidos (SQLite e mocks) e 7 de integração com Postgres e Redis reais via Testcontainers. O CI tem 4 jobs: lint, unit, integration e migrations.
+- **Dependências travadas** em `constraints.txt` (62 pacotes), depois de um build limpo puxar o kombu 5.7 e quebrar a API ([decisão 10](#10-dependências-travadas)).
+
+## Stack
+
+| Categoria | Tecnologia |
+|---|---|
+| Linguagem | Python 3.12 (imagem `python:3.12-slim`) |
+| Web | FastAPI 0.115 e Uvicorn 0.32 |
+| Validação e configuração | Pydantic 2.9 e pydantic-settings 2.5 |
+| Fila de tarefas | Celery 5.4 com Redis 7 como broker (cliente redis-py 5.1) |
+| Banco de dados | PostgreSQL 16 com SQLAlchemy 2.0 e Alembic 1.13 |
+| Processamento de imagem | Pillow 10.4 |
+| Rate limit | slowapi 0.1.9 |
+| Monitoramento | Flower 2.0 |
+| Testes | pytest 8.3 e Testcontainers 4.13 |
+| Lint e formatação | Ruff 0.17 |
+| Containers | Docker Compose |
+| CI | GitHub Actions |
+
 ## Sumário
 
+- [Destaques](#destaques)
+- [Stack](#stack)
 - [Arquitetura](#arquitetura)
 - [Ciclo de vida de uma tarefa](#ciclo-de-vida-de-uma-tarefa)
 - [Funcionalidades](#funcionalidades)
@@ -161,8 +188,8 @@ Cada decisão segue o mesmo formato: problema, decisão, alternativa descartada 
 
 - **Problema:** duas chamadas simultâneas de reprocessamento da mesma entrada da DLQ não podem criar duas tarefas.
 - **Decisão:** a entrada é lida com `with_for_update()`. A segunda chamada espera e, quando o lock é liberado, vê `status = reprocessed` e recebe 409 `"Dead letter already reprocessed"`. O 409 `"A task for this file is already in progress"`, vindo do índice, fica reservado para o caso de uma tarefa em andamento para o mesmo arquivo.
-- **Alternativa descartada:** depender só do índice. Sem o lock, a primeira chamada perde a corrida para o índice e recebe 409 `"already in progress"` em vez de 200.
-- **Como foi verificado:** `test_two_simultaneous_reprocess_calls_on_same_entry` (integração). Ele pausa a primeira chamada com o lock já adquirido, confirma em `pg_stat_activity` que a segunda espera em `dead_letters` e só então checa as respostas. Na mutação que remove `.with_for_update()`, esse teste falha porque a primeira chamada recebe 409 em vez de 200.
+- **Alternativa descartada:** depender só do índice. Sem o lock, o resultado depende do tempo. Se a tarefa criada pela primeira chamada ainda estiver em andamento, a segunda recebe 409 `"already in progress"`. Se ela já tiver terminado, a segunda chamada vê a tarefa concluída e também responde 200, e a mesma entrada é reprocessada duas vezes. Com o lock, a segunda chamada sempre espera e recebe `"already reprocessed"`.
+- **Como foi verificado:** `test_two_simultaneous_reprocess_calls_on_same_entry` (integração). Ele pausa a primeira chamada com o lock já adquirido, confirma em `pg_stat_activity` que a segunda espera em `dead_letters` e só então checa as respostas. Na mutação que remove `.with_for_update()`, esse teste falha porque a primeira chamada recebe 409 `"already in progress"` em vez de 200.
 
 ### 4. Postgres como fonte da verdade e Redis como notificação
 
