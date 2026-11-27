@@ -3,13 +3,16 @@ import hashlib
 import os
 import uuid
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Request
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from app.core.database import get_db
+from app.core.dead_letters import record_dead_letter
 from app.models import TaskRecord, DeadLetter
 from app.schemas.task import TaskCreatedResponse, TaskStatusResponse
 from app.workers.tasks import process_image_task
 from app.core.config import settings
 from app.core.file_types import detect_image_type
+from app.core.task_status import COMPLETED, IN_PROGRESS, PENDING
 from app.core.limiter import limiter
 
 router = APIRouter()
@@ -71,9 +74,24 @@ def _read_upload_to_part(source, part_path: str, max_bytes: int) -> tuple[str, s
     return hasher.hexdigest(), extension
 
 
+def _find_in_progress(db: Session, file_hash: str) -> TaskRecord | None:
+    return (
+        db.query(TaskRecord)
+        .filter(TaskRecord.file_hash == file_hash, TaskRecord.status.in_(IN_PROGRESS))
+        .first()
+    )
+
+
 @router.post("/process/image", response_model=TaskCreatedResponse)
 @limiter.limit(_upload_rate_limit)
 def process_image(request: Request, file: UploadFile = File(...), db: Session = Depends(get_db)):
+    """Enfileira o processamento de uma imagem.
+
+    Um arquivo igual a um já processado (`completed`) gera um registro novo
+    com o `result_url` reaproveitado, para preservar o histórico. Um arquivo
+    igual a outro ainda em andamento devolve o `task_id` existente, porque
+    ainda não há resultado para reaproveitar.
+    """
     task_id = str(uuid.uuid4())
     part_path = os.path.join(UPLOAD_DIR, f"{task_id}.part")
     max_bytes = settings.max_upload_mb * 1024 * 1024
@@ -81,36 +99,64 @@ def process_image(request: Request, file: UploadFile = File(...), db: Session = 
     try:
         file_hash, extension = _read_upload_to_part(file.file, part_path, max_bytes)
 
-        # Idempotency check: reuse the result of a previously completed task
-        # with the same file content instead of reprocessing it.
         existing = (
             db.query(TaskRecord)
-            .filter(TaskRecord.file_hash == file_hash, TaskRecord.status == "completed")
+            .filter(TaskRecord.file_hash == file_hash, TaskRecord.status == COMPLETED)
             .first()
         )
 
         if existing:
             task_record = TaskRecord(
                 id=task_id,
-                status="completed",
+                status=COMPLETED,
                 file_hash=file_hash,
                 result_url=existing.result_url,
             )
             db.add(task_record)
             db.commit()
 
-            return TaskCreatedResponse(task_id=task_id, status="completed")
+            return TaskCreatedResponse(task_id=task_id, status=COMPLETED)
+
+        in_progress = _find_in_progress(db, file_hash)
+        if in_progress:
+            return TaskCreatedResponse(task_id=in_progress.id, status=in_progress.status)
 
         saved_path = os.path.join(UPLOAD_DIR, f"{task_id}.{extension}")
+
+        # O registro é a trava: o índice único parcial só deixa um upload em
+        # andamento por hash. Quem perde a corrida recebe o ID de quem ganhou.
+        db.add(TaskRecord(id=task_id, status=PENDING, file_hash=file_hash, file_path=saved_path))
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            winner = _find_in_progress(db, file_hash)
+            if winner is None:
+                raise
+            return TaskCreatedResponse(task_id=winner.id, status=winner.status)
+
+        # Só depois do commit o arquivo vai para o caminho final.
         os.replace(part_path, saved_path)
 
-        task_record = TaskRecord(id=task_id, status="pending", file_hash=file_hash)
-        db.add(task_record)
-        db.commit()
+        try:
+            process_image_task.delay(task_id, saved_path)
+        except Exception:
+            # Marca como failed, o que libera o índice. O arquivo fica no disco
+            # para ser reprocessado depois.
+            record_dead_letter(
+                db,
+                task_id,
+                saved_path,
+                error_message="failed to enqueue task",
+                retry_count=0,
+                failure_kind="transient",
+            )
+            raise HTTPException(
+                status_code=503,
+                detail="Task queue unavailable, try again later",
+            )
 
-        process_image_task.delay(task_id, saved_path)
-
-        return TaskCreatedResponse(task_id=task_id, status="pending")
+        return TaskCreatedResponse(task_id=task_id, status=PENDING)
     finally:
         with contextlib.suppress(FileNotFoundError):
             os.remove(part_path)

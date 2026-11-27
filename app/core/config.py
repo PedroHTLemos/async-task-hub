@@ -1,3 +1,4 @@
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -16,6 +17,21 @@ class Settings(BaseSettings):
     retry_backoff_base_seconds: float = 2.0
     retry_backoff_max_seconds: float = 60.0
     retry_backoff_jitter_seconds: float = 1.0
+    stale_task_timeout_seconds: int = 600
+    sweep_interval_seconds: int = 60
+    part_file_max_age_seconds: int = 3600
+
+    @model_validator(mode="after")
+    def _stale_timeout_must_exceed_max_backoff(self):
+        # Sem essa folga, a rotina marcaria como travada uma tarefa que só está
+        # esperando o backoff de um retry legítimo.
+        largest_wait = self.retry_backoff_max_seconds + self.retry_backoff_jitter_seconds
+        if self.stale_task_timeout_seconds <= largest_wait:
+            raise ValueError(
+                f"stale_task_timeout_seconds ({self.stale_task_timeout_seconds}) deve ser "
+                f"maior que retry_backoff_max_seconds + retry_backoff_jitter_seconds ({largest_wait})"
+            )
+        return self
 
 
 settings = Settings()

@@ -84,6 +84,24 @@ services:
       redis:
         condition: service_healthy
 
+  # Apenas uma instância de beat: duas disparariam a rotina em dobro.
+  beat:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: asynctask_beat
+    restart: unless-stopped
+    command: celery -A app.workers.celery_app beat --loglevel=info --schedule /tmp/celerybeat-schedule
+    volumes:
+      - ../app:/code/app
+    env_file:
+      - ../.env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
   flower:
     build:
       context: ..

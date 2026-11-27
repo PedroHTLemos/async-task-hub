@@ -5,7 +5,7 @@ celery_app = Celery(
     "async_task_hub",
     broker=settings.celery_broker_url,
     backend=settings.celery_result_backend,
-    include=["app.workers.tasks"],
+    include=["app.workers.tasks", "app.workers.maintenance"],
 )
 
 celery_app.conf.update(
@@ -18,4 +18,10 @@ celery_app.conf.update(
     worker_prefetch_multiplier=1,
     worker_max_tasks_per_child=100,
     task_acks_late=True,
+    beat_schedule={
+        "sweep-stale-tasks": {
+            "task": "sweep_stale_tasks",
+            "schedule": settings.sweep_interval_seconds,
+        },
+    },
 )

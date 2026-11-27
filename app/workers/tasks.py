@@ -1,16 +1,16 @@
-import json
 import logging
 import os
 import warnings
 
-import redis
 from PIL import Image
+from app.core.dead_letters import record_dead_letter
+from app.core.task_status import COMPLETED, FAILED, PROCESSING, RETRYING
 from app.workers.backoff import compute_backoff
 from app.workers.celery_app import celery_app
 from app.workers.errors import PermanentTaskError, classify_decode_error
 from app.core.database import SessionLocal
 from app.core.config import settings
-from app.models import TaskRecord, DeadLetter
+from app.models import TaskRecord
 
 Image.MAX_IMAGE_PIXELS = settings.max_image_pixels
 
@@ -18,10 +18,6 @@ logger = logging.getLogger(__name__)
 
 OUTPUT_DIR = "app/static/processed"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
-
-DLQ_REDIS_KEY = "dlq:failed_tasks"
-
-redis_client = redis.from_url(settings.redis_url)
 
 
 def _open_image(path: str) -> Image.Image:
@@ -57,51 +53,10 @@ def _decode_image(path: str) -> Image.Image:
         raise
 
 
-def _send_to_dlq(
-    db,
-    task_id: str,
-    file_path: str,
-    error_message: str,
-    retry_count: int,
-    failure_kind: str,
-) -> None:
-    """Registra a falha na DLQ. O Postgres é a fonte da verdade.
-
-    Marca a tarefa como failed e insere o DeadLetter no mesmo commit, então
-    os dois acontecem juntos ou não acontecem. Se esse commit falhar, a
-    exceção sobe, porque não há outro lugar onde registrar a falha. Depois do
-    commit, o lpush no Redis é só uma notificação: se ele falhar, registramos
-    um aviso e seguimos, porque a linha na tabela já existe.
-    """
-    task = db.query(TaskRecord).filter(TaskRecord.id == task_id).first()
-    if task:
-        task.status = "failed"
-        task.error_message = error_message
-
-    db.add(
-        DeadLetter(
-            task_id=task_id,
-            file_path=file_path,
-            error_message=error_message,
-            retry_count=retry_count,
-            failure_kind=failure_kind,
-        )
-    )
-    db.commit()
-
-    try:
-        redis_client.lpush(
-            DLQ_REDIS_KEY,
-            json.dumps({"task_id": task_id, "file_path": file_path, "error": error_message}),
-        )
-    except Exception:
-        logger.warning("Falha ao notificar a DLQ no Redis para a task %s", task_id, exc_info=True)
-
-
 def _mark_retrying(db, task_id: str, error_message: str) -> None:
     task = db.query(TaskRecord).filter(TaskRecord.id == task_id).first()
     if task:
-        task.status = "retrying"
+        task.status = RETRYING
         task.error_message = error_message
         db.commit()
 
@@ -116,9 +71,16 @@ def process_image_task(self, task_id: str, file_path: str):
     try:
         task = db.query(TaskRecord).filter(TaskRecord.id == task_id).first()
         if not task:
-            return {"status": "failed", "error": "task not found"}
+            return {"status": FAILED, "error": "task not found"}
 
-        task.status = "processing"
+        # Mensagem que chega depois de a tarefa já ter sido concluída ou
+        # marcada como falha (ex.: pela rotina de tarefas travadas).
+        # PROCESSING não entra aqui de propósito: com acks_late, uma mensagem
+        # reentregue depois de um worker morrer precisa ser processada.
+        if task.status in (COMPLETED, FAILED):
+            return {"status": "skipped", "reason": f"task already {task.status}"}
+
+        task.status = PROCESSING
         db.commit()
 
         output_filename = f"{task_id}.jpg"
@@ -128,15 +90,15 @@ def process_image_task(self, task_id: str, file_path: str):
         # Gravação fica fora da decodificação: erro de disco é sempre passageiro.
         img.save(output_path, "JPEG", quality=85)
 
-        task.status = "completed"
+        task.status = COMPLETED
         task.result_url = f"/static/processed/{output_filename}"
         db.commit()
 
-        return {"status": "completed", "result_url": task.result_url}
+        return {"status": COMPLETED, "result_url": task.result_url}
 
     except PermanentTaskError as exc:
         db.rollback()
-        _send_to_dlq(
+        record_dead_letter(
             db,
             task_id,
             file_path,
@@ -144,13 +106,13 @@ def process_image_task(self, task_id: str, file_path: str):
             retry_count=self.request.retries,
             failure_kind="permanent",
         )
-        return {"status": "failed", "error": str(exc), "dead_lettered": True}
+        return {"status": FAILED, "error": str(exc), "dead_lettered": True}
 
     except Exception as exc:
         db.rollback()
 
         if self.request.retries >= self.max_retries:
-            _send_to_dlq(
+            record_dead_letter(
                 db,
                 task_id,
                 file_path,
@@ -158,7 +120,7 @@ def process_image_task(self, task_id: str, file_path: str):
                 retry_count=self.request.retries,
                 failure_kind="transient",
             )
-            return {"status": "failed", "error": str(exc), "dead_lettered": True}
+            return {"status": FAILED, "error": str(exc), "dead_lettered": True}
 
         _mark_retrying(db, task_id, str(exc))
         countdown = compute_backoff(
