@@ -7,6 +7,7 @@ from app.core.database import get_db
 from app.models import TaskRecord, DeadLetter
 from app.schemas.task import TaskCreatedResponse, TaskStatusResponse
 from app.workers.tasks import process_image_task
+from app.core.config import settings
 from app.core.limiter import limiter
 
 router = APIRouter()
@@ -15,8 +16,14 @@ UPLOAD_DIR = "app/static/uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
+def _upload_rate_limit() -> str:
+    # slowapi chama este callable a cada requisição, então a leitura de
+    # settings.rate_limit_per_minute acontece no momento do request.
+    return f"{settings.rate_limit_per_minute}/minute"
+
+
 @router.post("/process/image", response_model=TaskCreatedResponse)
-@limiter.limit("10/minute")
+@limiter.limit(_upload_rate_limit)
 def process_image(request: Request, file: UploadFile = File(...), db: Session = Depends(get_db)):
     file_bytes = file.file.read()
     file_hash = hashlib.sha256(file_bytes).hexdigest()
