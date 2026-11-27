@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, DateTime, Text
+from sqlalchemy import Column, String, DateTime, Integer, Text
 from sqlalchemy.sql import func
 from app.core.database import Base
 
@@ -23,5 +23,6 @@ class DeadLetter(Base):
     task_id = Column(String, index=True, nullable=False)
     file_path = Column(String, nullable=True)
     error_message = Column(Text, nullable=True)
-    retry_count = Column(String, nullable=True)
+    retry_count = Column(Integer, nullable=False, server_default="0")
+    failure_kind = Column(String, nullable=True)
     failed_at = Column(DateTime(timezone=True), server_default=func.now())

@@ -103,7 +103,7 @@ def test_dead_letters_endpoint_lists_failures(client, db_session):
         task_id="failed-task-id",
         file_path="/code/app/static/uploads/failed-task-id.jpg",
         error_message="cannot identify image file",
-        retry_count="0",
+        retry_count=0,
     )
     db_session.add(dead_letter)
     db_session.commit()

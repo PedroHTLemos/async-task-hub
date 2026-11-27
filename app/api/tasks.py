@@ -126,6 +126,7 @@ def list_dead_letters(db: Session = Depends(get_db)):
             "file_path": dl.file_path,
             "error_message": dl.error_message,
             "retry_count": dl.retry_count,
+            "failure_kind": dl.failure_kind,
             "failed_at": dl.failed_at,
         }
         for dl in dead_letters
