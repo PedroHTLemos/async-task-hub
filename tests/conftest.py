@@ -15,6 +15,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from app.core.config import settings
 from app.core.database import Base, get_db
 from app.core.limiter import limiter
 from app.main import app
@@ -63,7 +64,7 @@ def client(db_session, monkeypatch, tmp_path):
 
     # Redireciona o diretório de upload para uma pasta temporária só do
     # teste, em vez de gravar arquivos de verdade dentro do repositório.
-    monkeypatch.setattr("app.api.tasks.UPLOAD_DIR", str(tmp_path))
+    monkeypatch.setattr(settings, "upload_dir", str(tmp_path))
 
     mock_delay = MagicMock()
     monkeypatch.setattr("app.api.tasks.process_image_task.delay", mock_delay)

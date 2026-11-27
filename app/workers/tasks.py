@@ -2,6 +2,7 @@ import logging
 import os
 import warnings
 
+from celery.signals import worker_process_init
 from PIL import Image
 from app.core.dead_letters import record_dead_letter
 from app.core.task_status import COMPLETED, FAILED, PROCESSING, RETRYING
@@ -16,8 +17,12 @@ Image.MAX_IMAGE_PIXELS = settings.max_image_pixels
 
 logger = logging.getLogger(__name__)
 
-OUTPUT_DIR = "app/static/processed"
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+@worker_process_init.connect
+def _ensure_output_dir(**kwargs) -> None:
+    # Roda em cada processo filho do worker, antes da primeira tarefa. Criar o
+    # diretório na importação faria isso em todo processo que importa o módulo,
+    # inclusive a API e o beat, que não escrevem nele.
+    os.makedirs(settings.output_dir, exist_ok=True)
 
 
 def _open_image(path: str) -> Image.Image:
@@ -88,7 +93,7 @@ def process_image_task(self, task_id: str, file_path: str):
         db.commit()
 
         output_filename = f"{task_id}.jpg"
-        output_path = os.path.join(OUTPUT_DIR, output_filename)
+        output_path = os.path.join(settings.output_dir, output_filename)
 
         img = _decode_image(file_path)
         # Gravação fica fora da decodificação: erro de disco é sempre passageiro.

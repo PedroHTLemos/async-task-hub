@@ -2,7 +2,16 @@
 Testes de integração da API (rotas em app/api/tasks.py), usando o
 TestClient do FastAPI + SQLite em memória + Celery mockado (ver conftest.py).
 """
+import pytest
+
+from app.core.config import settings
 from app.models import DeadLetter, TaskRecord
+
+
+@pytest.fixture
+def admin_headers(monkeypatch):
+    monkeypatch.setattr(settings, "admin_api_key", "test-key")
+    return {"X-Admin-Key": "test-key"}
 
 
 def test_upload_enqueues_task_and_persists_record(client, db_session, sample_image_bytes):
@@ -98,7 +107,7 @@ def test_get_task_status_unknown_id_returns_404(client):
     assert response.status_code == 404
 
 
-def test_dead_letters_endpoint_lists_failures(client, db_session):
+def test_dead_letters_endpoint_lists_failures(client, db_session, admin_headers):
     dead_letter = DeadLetter(
         task_id="failed-task-id",
         file_path="/code/app/static/uploads/failed-task-id.jpg",
@@ -108,7 +117,7 @@ def test_dead_letters_endpoint_lists_failures(client, db_session):
     db_session.add(dead_letter)
     db_session.commit()
 
-    response = client.get("/tasks/dead-letters")
+    response = client.get("/tasks/dead-letters", headers=admin_headers)
 
     assert response.status_code == 200
     body = response.json()
@@ -117,10 +126,10 @@ def test_dead_letters_endpoint_lists_failures(client, db_session):
     assert body[0]["error_message"] == "cannot identify image file"
 
 
-def test_dead_letters_route_does_not_collide_with_task_id_route(client):
+def test_dead_letters_route_does_not_collide_with_task_id_route(client, admin_headers):
     """Garante que /tasks/dead-letters é resolvido pela rota específica e não
     é interpretado como /tasks/{task_id} com task_id='dead-letters'."""
-    response = client.get("/tasks/dead-letters")
+    response = client.get("/tasks/dead-letters", headers=admin_headers)
 
     # Se a rota dinâmica tivesse capturado primeiro, isso daria 404
     # (TaskStatusResponse exige campos que não existem para um id inexistente).

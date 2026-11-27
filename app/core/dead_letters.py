@@ -18,6 +18,11 @@ redis_client = redis.from_url(
 )
 
 
+def _notification_payload(task_id: str, file_path: str | None, error_message: str) -> str:
+    """Mesmo valor no LPUSH e no LREM: o LREM só remove um item idêntico."""
+    return json.dumps({"task_id": task_id, "file_path": file_path, "error": error_message})
+
+
 def record_dead_letter(
     db,
     task_id: str,
@@ -51,9 +56,23 @@ def record_dead_letter(
     db.commit()
 
     try:
-        redis_client.lpush(
-            DLQ_REDIS_KEY,
-            json.dumps({"task_id": task_id, "file_path": file_path, "error": error_message}),
-        )
+        redis_client.lpush(DLQ_REDIS_KEY, _notification_payload(task_id, file_path, error_message))
     except Exception:
         logger.warning("Falha ao notificar a DLQ no Redis para a task %s", task_id, exc_info=True)
+
+
+def remove_notification(dead_letter: DeadLetter) -> None:
+    """Remove da lista do Redis a notificação de uma entrada já reprocessada.
+
+    Como no registro, o Postgres é a fonte da verdade: se o LREM falhar, a
+    entrada continua marcada como reprocessed e só sobra um item na lista.
+    """
+    payload = _notification_payload(dead_letter.task_id, dead_letter.file_path, dead_letter.error_message)
+    try:
+        redis_client.lrem(DLQ_REDIS_KEY, 0, payload)
+    except Exception:
+        logger.warning(
+            "Falha ao remover a notificação da DLQ no Redis para a entrada %s",
+            dead_letter.id,
+            exc_info=True,
+        )
