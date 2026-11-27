@@ -1,11 +1,15 @@
 import json
 import os
+import warnings
+
 import redis
 from PIL import Image, UnidentifiedImageError
 from app.workers.celery_app import celery_app
 from app.core.database import SessionLocal
 from app.core.config import settings
 from app.models import TaskRecord, DeadLetter
+
+Image.MAX_IMAGE_PIXELS = settings.max_image_pixels
 
 OUTPUT_DIR = "app/static/processed"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -15,6 +19,21 @@ DLQ_REDIS_KEY = "dlq:failed_tasks"
 redis_client = redis.from_url(settings.redis_url)
 
 PERMANENT_FAILURE_EXCEPTIONS = (UnidentifiedImageError, FileNotFoundError, OSError)
+
+
+def _open_image(path: str) -> Image.Image:
+    """Abre a imagem tratando decompression bomb como erro.
+
+    Pillow só levanta DecompressionBombError acima de 2x MAX_IMAGE_PIXELS;
+    entre 1x e 2x emite apenas um DecompressionBombWarning. Transformamos o
+    warning em erro para o limite valer de verdade.
+    """
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", Image.DecompressionBombWarning)
+        try:
+            return Image.open(path)
+        except Image.DecompressionBombWarning as exc:
+            raise Image.DecompressionBombError(str(exc)) from exc
 
 
 def _send_to_dlq(db, task_id: str, file_path: str, error_message: str, retry_count: int):
@@ -50,7 +69,7 @@ def process_image_task(self, task_id: str, file_path: str):
         output_filename = f"{task_id}.jpg"
         output_path = os.path.join(OUTPUT_DIR, output_filename)
 
-        with Image.open(file_path) as img:
+        with _open_image(file_path) as img:
             img.load()  # forces decode now, so corrupted files raise here, not lazily later
             img = img.convert("RGB")
             img.thumbnail((800, 800))

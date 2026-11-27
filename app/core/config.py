@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     celery_result_backend: str
     rate_limit_per_minute: int = 10
     rate_limit_storage_uri: str = "memory://"
+    max_upload_mb: int = 10
+    max_image_pixels: int = 25_000_000
 
 
 settings = Settings()
