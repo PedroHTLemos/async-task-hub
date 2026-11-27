@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     rate_limit_storage_uri: str = "memory://"
     max_upload_mb: int = 10
     max_image_pixels: int = 25_000_000
+    task_max_retries: int = 3
+    retry_backoff_base_seconds: float = 2.0
+    retry_backoff_max_seconds: float = 60.0
+    retry_backoff_jitter_seconds: float = 1.0
 
 
 settings = Settings()
